@@ -65,6 +65,34 @@ jobs:
           TAVILY_API_KEYS: ${{ secrets.TAVILY_API_KEYS }}
           SERPAPI_API_KEYS: ${{ secrets.SERPAPI_API_KEYS }}
           
+          # OpenAI 兼容 API（备选）
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          
+          # 通知渠道（可同时配置多个，全部推送）
+          # 方式一：企业微信
+          WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
+          # 方式二：飞书
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          # 方式三：Telegram（需同时配置 Bot Token 和 Chat ID）
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # 方式四：邮件（只需邮箱和授权码，SMTP自动识别）
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECEIVERS: ${{ secrets.EMAIL_RECEIVERS }}
+          # 方式五：自定义 Webhook（支持钉钉、Discord、Slack、Bark等，多个用逗号分隔）
+          CUSTOM_WEBHOOK_URLS: ${{ secrets.CUSTOM_WEBHOOK_URLS }}
+          # 方式六：飞书文档
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_FOLDER_TOKEN: ${{ secrets.FEISHU_FOLDER_TOKEN }}
+
+          
+          # 自选股列表 (从 secrets 或使用默认值)
+          STOCK_LIST: ${{ secrets.STOCK_LIST || '600519' }}
+          
           # 其他配置
           LOG_LEVEL: INFO
           DATA_DAYS: 60
