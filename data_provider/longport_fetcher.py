@@ -265,21 +265,23 @@ class LongportFetcher(BaseFetcher):
             
             from .akshare_fetcher import RealtimeQuote
             
-            # 修复：使用 RealtimeQuote 实际存在的字段名
-            # 需要先检查 RealtimeQuote 的定义来确定正确的字段名
+            # 严格按照 RealtimeQuote 定义的字段来构造
             return RealtimeQuote(
                 code=stock_code,
                 name=stock_name or stock_code,
                 price=safe_get(q, 'last_done', 'last_price', 'current_price'),
                 change_pct=safe_get(q, 'change_rate', 'change_pct', 'pct_change'),
-                turnover_rate=safe_get(q, 'turnover_rate'),
+                change_amount=safe_get(q, 'change_val', 'change_amount', 'change'),
                 volume_ratio=safe_get(q, 'volume_ratio'),
+                turnover_rate=safe_get(q, 'turnover_rate'),
+                amplitude=safe_get(q, 'amplitude'),
                 pe_ratio=safe_get(q, 'pe_ttm', 'pe_ratio'),
+                pb_ratio=safe_get(q, 'pb_ratio', 'pb'),
                 total_mv=safe_get(q, 'total_market_value', 'market_cap'),
-                high=safe_get(q, 'high'),
-                low=safe_get(q, 'low'),
-                open_price=safe_get(q, 'open'),
-                prev_close=safe_get(q, 'prev_close', 'last_close', 'pre_close'),
+                circ_mv=safe_get(q, 'circulating_market_value', 'float_market_value'),
+                change_60d=0.0,  # LongPort 实时接口通常不提供此字段
+                high_52w=safe_get(q, 'high_52w', 'week52_high'),
+                low_52w=safe_get(q, 'low_52w', 'week52_low'),
             )
             
         except Exception as e:
