@@ -17,7 +17,7 @@ LongportFetcher - 主力数据源 (Priority 0)
 import logging
 import time
 from datetime import datetime, date
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 
 import pandas as pd
 from tenacity import (
@@ -27,6 +27,9 @@ from tenacity import (
     retry_if_exception_type,
     before_sleep_log,
 )
+
+if TYPE_CHECKING:
+    from .akshare_fetcher import RealtimeQuote
 
 try:
     from longport.openapi import QuoteContext, Config, Period, AdjustType
