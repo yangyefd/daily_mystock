@@ -152,6 +152,8 @@ class LongportFetcher(BaseFetcher):
         LongPort 格式：
         - 沪市：600519.SH
         - 深市：000001.SZ
+        - 沪市ETF：510210.SH
+        - 深市ETF：159320.SZ
         - 港股：00700.HK
         - 美股：AAPL.US
         """
@@ -161,17 +163,58 @@ class LongportFetcher(BaseFetcher):
         if '.' in code:
             return code
         
-        # 根据代码前缀判断市场
+        # === A 股主板 ===
+        # 沪市主板：600xxx, 601xxx, 603xxx
+        # 沪市科创板：688xxx
         if code.startswith(('600', '601', '603', '688')):
             return f"{code}.SH"
-        elif code.startswith(('000', '002', '300')):
+        
+        # 深市主板：000xxx
+        # 深市中小板：002xxx
+        # 深市创业板：300xxx, 301xxx
+        elif code.startswith(('000', '002', '300', '301')):
             return f"{code}.SZ"
-        # 简单判断港股（5位数字）
+        
+        # === ETF 基金 ===
+        # 沪市 ETF：510xxx, 511xxx, 512xxx, 513xxx, 515xxx, 516xxx, 517xxx, 518xxx, 560xxx, 561xxx, 562xxx, 563xxx
+        elif code.startswith(('51', '56')):
+
+            return f"{code}.SH"
+        
+        # 深市 ETF：159xxx
+        elif code.startswith('159'):
+            return f"{code}.SZ"
+        
+        # === LOF 基金 ===
+        # 沪市 LOF：501xxx
+        elif code.startswith('501'):
+            return f"{code}.SH"
+        
+        # 深市 LOF：16xxxx
+        elif code.startswith('16'):
+            return f"{code}.SZ"
+        
+        # === 可转债 ===
+        # 沪市可转债：110xxx, 113xxx
+        elif code.startswith(('110', '113')):
+
+            return f"{code}.SH"
+        
+        # 深市可转债：123xxx, 127xxx, 128xxx
+        elif code.startswith(('123', '127', '128')):
+
+            return f"{code}.SZ"
+        
+        # === 港股（5位数字）===
+
         elif len(code) == 5 and code.isdigit():
             return f"{code}.HK"
-        # 简单判断美股（纯字母）
+        
+        # === 美股（纯字母）===
+
         elif code.isalpha():
             return f"{code}.US"
+        
         else:
             logger.warning(f"无法确定股票 {code} 的市场，默认使用深市 SZ")
             return f"{code}.SZ"
@@ -191,8 +234,7 @@ class LongportFetcher(BaseFetcher):
             
             q = quotes[0]
             
-            # 修复：安全获取属性，兼容不同版本的 SDK
-            # 股票名称可能在不同字段中，或者需要单独获取
+            # 安全获取股票名称
             stock_name = ""
             for attr in ['name', 'symbol_name', 'security_name']:
                 if hasattr(q, attr):
@@ -215,7 +257,6 @@ class LongportFetcher(BaseFetcher):
                     if hasattr(obj, attr):
                         val = getattr(obj, attr, None)
                         if val is not None:
-                            # 处理 Decimal 类型
                             try:
                                 return float(val)
                             except (TypeError, ValueError):
@@ -224,13 +265,13 @@ class LongportFetcher(BaseFetcher):
             
             from .akshare_fetcher import RealtimeQuote
             
+            # 修复：使用 RealtimeQuote 实际存在的字段名
+            # 需要先检查 RealtimeQuote 的定义来确定正确的字段名
             return RealtimeQuote(
                 code=stock_code,
                 name=stock_name or stock_code,
                 price=safe_get(q, 'last_done', 'last_price', 'current_price'),
                 change_pct=safe_get(q, 'change_rate', 'change_pct', 'pct_change'),
-                volume=safe_get(q, 'volume'),
-                amount=safe_get(q, 'turnover', 'amount'),
                 turnover_rate=safe_get(q, 'turnover_rate'),
                 volume_ratio=safe_get(q, 'volume_ratio'),
                 pe_ratio=safe_get(q, 'pe_ttm', 'pe_ratio'),
