@@ -1,9 +1,14 @@
 name: 每日股票分析
 
 on:
-  # 定时触发 - 每天北京时间 18:00 (UTC 10:00)
+  # 定时触发 (UTC时间)
   schedule:
-    - cron: '0 10 * * 1-5'  # 周一到周五，UTC 10:00 = 北京时间 18:00
+    # 1. 盘中每半小时 (09:00-11:30, 13:00-15:00 BJT)
+    # 对应 UTC: 1:00-3:30, 5:00-7:00
+    - cron: '0,30 1-3,5-7 * * 1-5'
+    
+    # 2. 晚盘 22:00 BJT (14:00 UTC) - 无搜索，全面复盘
+    - cron: '0 14 * * 1-5'
   
   # 手动触发
   workflow_dispatch:
@@ -51,62 +56,82 @@ jobs:
           
           # 数据源 (可选)
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          LONGPORT_APP_KEY: ${{ secrets.LONGPORT_APP_KEY }}
+          LONGPORT_APP_SECRET: ${{ secrets.LONGPORT_APP_SECRET }}
+          LONGPORT_ACCESS_TOKEN: ${{ secrets.LONGPORT_ACCESS_TOKEN }}
           
-          # 搜索服务
+          # 搜索服务 (将在下方的 run 脚本中动态控制是否生效)
           BOCHA_API_KEYS: ${{ secrets.BOCHA_API_KEYS }}
           TAVILY_API_KEYS: ${{ secrets.TAVILY_API_KEYS }}
           SERPAPI_API_KEYS: ${{ secrets.SERPAPI_API_KEYS }}
-          
-          # OpenAI 兼容 API（备选）
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
-          
-          # 通知渠道（可同时配置多个，全部推送）
-          # 方式一：企业微信
-          WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
-          # 方式二：飞书
-          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
-          # 方式三：Telegram（需同时配置 Bot Token 和 Chat ID）
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # 方式四：邮件（只需邮箱和授权码，SMTP自动识别）
-          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          EMAIL_RECEIVERS: ${{ secrets.EMAIL_RECEIVERS }}
-          # 方式五：自定义 Webhook（支持钉钉、Discord、Slack、Bark等，多个用逗号分隔）
-          CUSTOM_WEBHOOK_URLS: ${{ secrets.CUSTOM_WEBHOOK_URLS }}
-          # 方式六：飞书文档
-          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
-          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-          FEISHU_FOLDER_TOKEN: ${{ secrets.FEISHU_FOLDER_TOKEN }}
-
-          
-          # 自选股列表 (从 secrets 或使用默认值)
-          STOCK_LIST: ${{ secrets.STOCK_LIST || '600519' }}
           
           # 其他配置
           LOG_LEVEL: INFO
           DATA_DAYS: 60
           MAX_CONCURRENT: 3
         run: |
-          # 判断运行模式
+          # 获取当前北京时间的小时和分钟
+          CURRENT_HOUR=$(TZ='Asia/Shanghai' date +%H)
+          CURRENT_MINUTE=$(TZ='Asia/Shanghai' date +%M)
+          
+          echo "当前北京时间: ${CURRENT_HOUR}:${CURRENT_MINUTE}"
+          
+          # === 逻辑判断区 ===
+          
+          # 默认：关闭搜索，开启轻量模式
+          ENABLE_SEARCH="false"
+          RUN_ARGS=""
+          
+          # 场景1：早盘 09:00 (允许误差范围 08:55-09:15，避免09:30误触)
+          if [ "$CURRENT_HOUR" -eq 9 ] && [ "$CURRENT_MINUTE" -le 15 ]; then
+             echo ">>> 触发场景: 早盘分析 (开启搜索)"
+             ENABLE_SEARCH="true"
+             
+          # 场景2：午盘 14:30 (允许误差范围 14:25-14:55)
+          elif [ "$CURRENT_HOUR" -eq 14 ] && [ "$CURRENT_MINUTE" -ge 25 ] && [ "$CURRENT_MINUTE" -le 55 ]; then
+             echo ">>> 触发场景: 午盘分析 (关闭搜索)"
+             ENABLE_SEARCH="false"
+             
+          # 场景3：晚盘 22:00
+          elif [ "$CURRENT_HOUR" -eq 22 ]; then
+             echo ">>> 触发场景: 晚盘复盘 (关闭搜索)"
+             ENABLE_SEARCH="false"
+             
+          # 场景4：其他时间 (手动触发或额外定时)
+          else
+             echo ">>> 触发场景: 其他时间 (轻量模式)"
+             ENABLE_SEARCH="false"
+             # 如果代码支持，可以添加 --light 参数减少 Token 消耗
+             # RUN_ARGS="--market-review" 
+          fi
+          
+          # 强制复写手动输入的模式（如果有）
           MODE="${{ github.event.inputs.mode || 'full' }}"
           
+          # === 动态环境配置 ===
+          
+          # 如果不允许搜索，通过置空环境变量来“欺骗”应用程序
+          if [ "$ENABLE_SEARCH" != "true" ]; then
+             echo "禁用搜索功能: 清除 API Keys"
+             unset BOCHA_API_KEYS
+             unset TAVILY_API_KEYS
+             unset SERPAPI_API_KEYS
+             export NO_SEARCH="true" # 可选，供代码显式读取
+          fi
+          
           echo "=========================================="
-          echo "运行模式: $MODE"
-          echo "自选股: $STOCK_LIST"
-          echo "时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
-          echo "BOCHA_API_KEYS 是否配置: $([ -n "$BOCHA_API_KEYS" ] && echo '是' || echo '否')"
-          echo "BOCHA_API_KEYS 长度: ${#BOCHA_API_KEYS}"
+          echo "最终执行参数:"
+          echo "SEARCH: $ENABLE_SEARCH"
+          echo "MODE: $MODE"
           echo "=========================================="
           
+          # 执行 Python 脚本
           if [ "$MODE" = "market-only" ]; then
-            python main.py --market-review
+            python main.py --market-review $RUN_ARGS
           elif [ "$MODE" = "stocks-only" ]; then
-            python main.py --no-market-review
+            python main.py --no-market-review $RUN_ARGS
           else
-            python main.py
+            python main.py $RUN_ARGS
           fi
       
       - name: 上传分析报告
