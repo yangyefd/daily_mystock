@@ -32,7 +32,12 @@ if TYPE_CHECKING:
     from .akshare_fetcher import RealtimeQuote
 
 try:
-    from longport.openapi import QuoteContext, Config, Period, AdjustType
+    from longport.openapi import (
+        QuoteContext, 
+        Config as LongportConfig, 
+        Period,
+        AdjustType,
+    )
 except ImportError:
     pass  # 在 _init_api 中处理导入错误
 
@@ -90,10 +95,8 @@ class LongportFetcher(BaseFetcher):
             return
         
         try:
-            from longport.openapi import QuoteContext, Config
-            
             # 配置 LongPort
-            lp_config = Config(app_key, app_secret, access_token)
+            lp_config = LongportConfig(app_key, app_secret, access_token)
             self._ctx = QuoteContext(lp_config)
             
             logger.info("LongPort API 初始化成功")
@@ -175,64 +178,69 @@ class LongportFetcher(BaseFetcher):
 
     def get_realtime_quote(self, stock_code: str) -> Optional['RealtimeQuote']:
         """
-        获取单只股票的实时行情
-        
-        Args:
-            stock_code: 股票代码
-            
-        Returns:
-            RealtimeQuote 对象或 None
+        获取实时行情数据
         """
-        if self._ctx is None:
-            return None
-            
         try:
-            # 引入依赖以避免循环引用
-            from .akshare_fetcher import RealtimeQuote
-            
             symbol = self._convert_stock_code(stock_code)
             
-            # 使用 quote 接口获取实时快照
             quotes = self._ctx.quote([symbol])
             
             if not quotes:
+                logger.warning(f"LongPort 未返回 {stock_code} 的实时行情")
                 return None
             
             q = quotes[0]
             
-            # 计算换手率等指标 (LongPort 部分字段可能需要计算)
-            # volume_ratio: 量比 = 现在量 / (5日均量 / 240 * 当前已开盘分钟数) 
-            # LongPort quote 中直接提供了 volume_ratio
+            # 修复：安全获取属性，兼容不同版本的 SDK
+            # 股票名称可能在不同字段中，或者需要单独获取
+            stock_name = ""
+            for attr in ['name', 'symbol_name', 'security_name']:
+                if hasattr(q, attr):
+                    stock_name = getattr(q, attr, "")
+                    break
             
-            # 注意判空，使用 float(val) 转换
-            price = float(q.last_done)
-            prev_close = float(q.prev_close)
+            # 如果还是没有名称，尝试从 static_info 获取
+            if not stock_name:
+                try:
+                    static_info = self._ctx.static_info([symbol])
+                    if static_info:
+                        stock_name = getattr(static_info[0], 'name_cn', '') or getattr(static_info[0], 'name', '')
+                except Exception:
+                    pass
             
-            change_amount = price - prev_close
-            change_pct = (change_amount / prev_close * 100) if prev_close else 0.0
+            # 安全获取各个字段
+            def safe_get(obj, *attrs, default=0.0):
+                """安全获取对象属性，支持多个候选属性名"""
+                for attr in attrs:
+                    if hasattr(obj, attr):
+                        val = getattr(obj, attr, None)
+                        if val is not None:
+                            # 处理 Decimal 类型
+                            try:
+                                return float(val)
+                            except (TypeError, ValueError):
+                                return val
+                return default
             
-            # 这里的量比和换手率直接取 API 返回值
-            volume_ratio = float(q.volume_ratio) if hasattr(q, 'volume_ratio') else 1.0
-            turnover_rate = float(q.turnover_rate) if hasattr(q, 'turnover_rate') else 0.0
-            amplitude = float(q.amplitude) if hasattr(q, 'amplitude') else 0.0
+            from .akshare_fetcher import RealtimeQuote
             
-            # 构造统一的 RealtimeQuote 对象
             return RealtimeQuote(
                 code=stock_code,
-                name=q.name,
-                price=price,
-                change_pct=round(change_pct, 2),
-                change_amount=round(change_amount, 2),
-                volume_ratio=round(volume_ratio, 2),
-                turnover_rate=round(turnover_rate * 100, 2) if turnover_rate < 1 else round(turnover_rate, 2), # 修正可能的单位差异
-                amplitude=round(amplitude, 2),
-                pe_ratio=float(q.pe_ttm) if hasattr(q, 'pe_ttm') else 0.0,
-                pb_ratio=float(q.pb) if hasattr(q, 'pb') else 0.0,
-                total_mv=float(q.total_market_value) if hasattr(q, 'total_market_value') else 0.0,
-                circ_mv=float(q.circulating_market_value) if hasattr(q, 'circulating_market_value') else 0.0,
-                change_60d=0.0 # LongPort快照不含60日涨幅，暂置0
+                name=stock_name or stock_code,
+                price=safe_get(q, 'last_done', 'last_price', 'current_price'),
+                change_pct=safe_get(q, 'change_rate', 'change_pct', 'pct_change'),
+                volume=safe_get(q, 'volume'),
+                amount=safe_get(q, 'turnover', 'amount'),
+                turnover_rate=safe_get(q, 'turnover_rate'),
+                volume_ratio=safe_get(q, 'volume_ratio'),
+                pe_ratio=safe_get(q, 'pe_ttm', 'pe_ratio'),
+                total_mv=safe_get(q, 'total_market_value', 'market_cap'),
+                high=safe_get(q, 'high'),
+                low=safe_get(q, 'low'),
+                open_price=safe_get(q, 'open'),
+                prev_close=safe_get(q, 'prev_close', 'last_close', 'pre_close'),
             )
-
+            
         except Exception as e:
             logger.error(f"LongPort 获取实时行情失败 {stock_code}: {e}")
             return None
@@ -247,30 +255,32 @@ class LongportFetcher(BaseFetcher):
         """
         从 LongPort 获取历史 K 线数据
         """
-        if self._ctx is None:
-            raise DataFetchError("LongPort API 未初始化")
-        
-        # 速率限制检查
-        self._check_rate_limit()
-        
-        # 转换代码格式
-        symbol = self._convert_stock_code(stock_code)
-        
-        logger.debug(f"调用 LongPort history({symbol}, {start_date}, {end_date})")
-        
         try:
-            # 导入必要的枚举类型
-            from longport.openapi import Period, AdjustType
+            symbol = self._convert_stock_code(stock_code)
             
-            # 获取历史 K 线
-            # start_date 和 end_date 格式通常支持 'YYYY-MM-DD'
-            # 使用前复权 (Forward) 以保持与 Efinance (fqt=1) 一致，利于技术分析
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+            
+            # 修复：兼容不同版本的 AdjustType 枚举
+            # 尝试多种可能的枚举值名称
+            adjust_type = None
+            for attr_name in ['ForwardAdjust', 'Forward', 'FORWARD_ADJUST', 'FORWARD']:
+                if hasattr(AdjustType, attr_name):
+                    adjust_type = getattr(AdjustType, attr_name)
+                    logger.debug(f"使用复权类型: AdjustType.{attr_name}")
+                    break
+            
+            # 如果都没找到，使用不复权作为兜底
+            if adjust_type is None:
+                logger.warning("无法找到前复权枚举，使用不复权模式")
+                adjust_type = AdjustType.NoAdjust
+            
             candlesticks = self._ctx.history_candlesticks_by_date(
                 symbol=symbol,
                 period=Period.Day,
-                adjust_type=AdjustType.Forward, 
-                start=start_date,
-                end=end_date
+                adjust_type=adjust_type,
+                start=start_dt,
+                end=end_dt,
             )
             
             # 转换为 DataFrame
@@ -290,11 +300,8 @@ class LongportFetcher(BaseFetcher):
             return df
             
         except Exception as e:
-            error_msg = str(e).lower()
-            if 'rate limit' in error_msg or 'limit' in error_msg:
-                 raise RateLimitError(f"LongPort 配额超限: {e}") from e
-            raise DataFetchError(f"LongPort 获取数据失败: {e}") from e
-
+            raise DataFetchError(f"LongPort 获取数据失败: {e}")
+    
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
         """
         标准化 LongPort 数据
