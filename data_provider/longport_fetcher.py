@@ -170,6 +170,70 @@ class LongportFetcher(BaseFetcher):
             logger.warning(f"无法确定股票 {code} 的市场，默认使用深市 SZ")
             return f"{code}.SZ"
 
+    def get_realtime_quote(self, stock_code: str) -> Optional['RealtimeQuote']:
+        """
+        获取单只股票的实时行情
+        
+        Args:
+            stock_code: 股票代码
+            
+        Returns:
+            RealtimeQuote 对象或 None
+        """
+        if self._ctx is None:
+            return None
+            
+        try:
+            # 引入依赖以避免循环引用
+            from .akshare_fetcher import RealtimeQuote
+            
+            symbol = self._convert_stock_code(stock_code)
+            
+            # 使用 quote 接口获取实时快照
+            quotes = self._ctx.quote([symbol])
+            
+            if not quotes:
+                return None
+            
+            q = quotes[0]
+            
+            # 计算换手率等指标 (LongPort 部分字段可能需要计算)
+            # volume_ratio: 量比 = 现在量 / (5日均量 / 240 * 当前已开盘分钟数) 
+            # LongPort quote 中直接提供了 volume_ratio
+            
+            # 注意判空，使用 float(val) 转换
+            price = float(q.last_done)
+            prev_close = float(q.prev_close)
+            
+            change_amount = price - prev_close
+            change_pct = (change_amount / prev_close * 100) if prev_close else 0.0
+            
+            # 这里的量比和换手率直接取 API 返回值
+            volume_ratio = float(q.volume_ratio) if hasattr(q, 'volume_ratio') else 1.0
+            turnover_rate = float(q.turnover_rate) if hasattr(q, 'turnover_rate') else 0.0
+            amplitude = float(q.amplitude) if hasattr(q, 'amplitude') else 0.0
+            
+            # 构造统一的 RealtimeQuote 对象
+            return RealtimeQuote(
+                code=stock_code,
+                name=q.name,
+                price=price,
+                change_pct=round(change_pct, 2),
+                change_amount=round(change_amount, 2),
+                volume_ratio=round(volume_ratio, 2),
+                turnover_rate=round(turnover_rate * 100, 2) if turnover_rate < 1 else round(turnover_rate, 2), # 修正可能的单位差异
+                amplitude=round(amplitude, 2),
+                pe_ratio=float(q.pe_ttm) if hasattr(q, 'pe_ttm') else 0.0,
+                pb_ratio=float(q.pb) if hasattr(q, 'pb') else 0.0,
+                total_mv=float(q.total_market_value) if hasattr(q, 'total_market_value') else 0.0,
+                circ_mv=float(q.circulating_market_value) if hasattr(q, 'circulating_market_value') else 0.0,
+                change_60d=0.0 # LongPort快照不含60日涨幅，暂置0
+            )
+
+        except Exception as e:
+            logger.error(f"LongPort 获取实时行情失败 {stock_code}: {e}")
+            return None
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=30),

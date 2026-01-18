@@ -239,7 +239,21 @@ class StockAnalysisPipeline:
             # Step 1: 获取实时行情（量比、换手率等）
             realtime_quote: Optional[RealtimeQuote] = None
             try:
-                realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
+                # 优先使用 LongPort 获取实时行情 (如果可用)
+                # 检查 LongPort Fetcher 是否初始化成功
+                longport_fetcher = next((f for f in self.fetcher_manager._fetchers if f.name == "LongportFetcher"), None)
+                
+                if longport_fetcher and longport_fetcher._ctx:
+                     try:
+                        realtime_quote = longport_fetcher.get_realtime_quote(code)
+                     except Exception as e:
+                        logger.warning(f"[{code}] LongPort 获取实时行情失败，尝试降级到 Akshare: {e}")
+                        realtime_quote = None
+                
+                # 如果 LongPort 不可用或失败，降级到 Akshare
+                if not realtime_quote:
+                    realtime_quote = self.akshare_fetcher.get_realtime_quote(code)
+
                 if realtime_quote:
                     # 使用实时行情返回的真实股票名称
                     if realtime_quote.name:
