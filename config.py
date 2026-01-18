@@ -39,6 +39,11 @@ class Config:
     # === 数据源 API Token ===
     tushare_token: Optional[str] = None
     
+    # LongPort 配置
+    longport_app_key: Optional[str] = None
+    longport_app_secret: Optional[str] = None
+    longport_access_token: Optional[str] = None
+    
     # === AI 分析配置 ===
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-3-flash-preview"  # 主模型
@@ -180,6 +185,9 @@ class Config:
             feishu_app_secret=os.getenv('FEISHU_APP_SECRET'),
             feishu_folder_token=os.getenv('FEISHU_FOLDER_TOKEN'),
             tushare_token=os.getenv('TUSHARE_TOKEN'),
+            longport_app_key=os.getenv('LONGPORT_APP_KEY'),
+            longport_app_secret=os.getenv('LONGPORT_APP_SECRET'),
+            longport_access_token=os.getenv('LONGPORT_ACCESS_TOKEN'),
             gemini_api_key=os.getenv('GEMINI_API_KEY'),
             gemini_model=os.getenv('GEMINI_MODEL', 'gemini-3-flash-preview'),
             gemini_model_fallback=os.getenv('GEMINI_MODEL_FALLBACK', 'gemini-2.5-flash'),
@@ -261,6 +269,9 @@ class Config:
         
         if not self.stock_list:
             warnings.append("警告：未配置自选股列表 (STOCK_LIST)")
+            
+        if not all([self.longport_app_key, self.longport_app_secret, self.longport_access_token]):
+            warnings.append("提示：未配置 LongPort API (AppKey/Secret/Token)，将使用其他数据源")
         
         if not self.tushare_token:
             warnings.append("提示：未配置 Tushare Token，将使用其他数据源")
