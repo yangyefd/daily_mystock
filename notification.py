@@ -694,6 +694,31 @@ class NotificationService:
                 "",
             ])
         
+        # ========== 股票汇总表 ==========
+        report_lines.append("## 📋 今日股票汇总")
+        report_lines.append("")
+        report_lines.append("| 股票名 | 决策建议 | 时效 | 简要理由 |")
+        report_lines.append("|--------|---------|-----|---------|")
+
+        for result in sorted_results:
+            dashboard = result.dashboard if hasattr(result, 'dashboard') and result.dashboard else {}
+            core = dashboard.get('core_conclusion', {}) if dashboard else {}
+            
+            stock_name = result.name if result.name else result.code
+            signal_text = core.get('signal_text', result.operation_advice)
+            time_sense = core.get('time_sensitivity', '本周内')
+            one_sentence = core.get('one_sentence', result.analysis_summary)
+            
+            # 避免表格里的换行符破坏格式
+            one_sentence = one_sentence.replace("\n", " ").replace("|", " ")
+            
+            report_lines.append(f"| {stock_name} | {signal_text} | {time_sense} | {one_sentence} |")
+
+        report_lines.append("")
+        report_lines.append("---")
+        report_lines.append("")
+
+
         # 底部（去除免责声明）
         report_lines.extend([
             "",
