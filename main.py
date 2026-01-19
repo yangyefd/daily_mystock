@@ -613,8 +613,12 @@ class StockAnalysisPipeline:
             # 生成决策仪表盘格式的详细日报
             report = self.notifier.generate_dashboard_report(results)
             
+            # 在报告最后添加股票汇总表格
+            stock_summary_table = self.notifier.generate_stock_summary_table(results)
+            report_with_table = f"{report}\n\n---\n\n{stock_summary_table}"
+            
             # 保存到本地
-            filepath = self.notifier.save_report_to_file(report)
+            filepath = self.notifier.save_report_to_file(report_with_table)
             logger.info(f"决策仪表盘日报已保存: {filepath}")
             
             # 跳过推送（单股推送模式）
@@ -629,9 +633,12 @@ class StockAnalysisPipeline:
                 wechat_success = False
                 if NotificationChannel.WECHAT in channels:
                     dashboard_content = self.notifier.generate_wechat_dashboard(results)
-                    logger.info(f"企业微信仪表盘长度: {len(dashboard_content)} 字符")
-                    logger.debug(f"企业微信推送内容:\n{dashboard_content}")
-                    wechat_success = self.notifier.send_to_wechat(dashboard_content)
+                    # 添加表格到企业微信消息
+                    table_content = self.notifier.generate_stock_summary_table(results)
+                    dashboard_content_with_table = f"{dashboard_content}\n\n---\n\n{table_content}"
+                    logger.info(f"企业微信仪表盘长度: {len(dashboard_content_with_table)} 字符")
+                    logger.debug(f"企业微信推送内容:\n{dashboard_content_with_table}")
+                    wechat_success = self.notifier.send_to_wechat(dashboard_content_with_table)
 
                 # 其他渠道：发完整报告（避免自定义 Webhook 被 wechat 截断逻辑污染）
                 non_wechat_success = False
@@ -639,13 +646,13 @@ class StockAnalysisPipeline:
                     if channel == NotificationChannel.WECHAT:
                         continue
                     if channel == NotificationChannel.FEISHU:
-                        non_wechat_success = self.notifier.send_to_feishu(report) or non_wechat_success
+                        non_wechat_success = self.notifier.send_to_feishu(report_with_table) or non_wechat_success
                     elif channel == NotificationChannel.TELEGRAM:
-                        non_wechat_success = self.notifier.send_to_telegram(report) or non_wechat_success
+                        non_wechat_success = self.notifier.send_to_telegram(report_with_table) or non_wechat_success
                     elif channel == NotificationChannel.EMAIL:
-                        non_wechat_success = self.notifier.send_to_email(report) or non_wechat_success
+                        non_wechat_success = self.notifier.send_to_email(report_with_table) or non_wechat_success
                     elif channel == NotificationChannel.CUSTOM:
-                        non_wechat_success = self.notifier.send_to_custom(report) or non_wechat_success
+                        non_wechat_success = self.notifier.send_to_custom(report_with_table) or non_wechat_success
                     else:
                         logger.warning(f"未知通知渠道: {channel}")
 
@@ -839,6 +846,7 @@ def run_full_analysis(
                     f"{emoji} {r.name}({r.code}): {r.operation_advice} | "
                     f"评分 {r.sentiment_score} | {r.trend_prediction}"
                 )
+            
         
         logger.info("\n任务执行完成")
 
