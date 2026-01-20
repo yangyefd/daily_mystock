@@ -846,6 +846,21 @@ def run_full_analysis(
                     f"{emoji} {r.name}({r.code}): {r.operation_advice} | "
                     f"评分 {r.sentiment_score} | {r.trend_prediction}"
                 )
+            # 将摘要也同步到飞书
+            try:
+                if pipeline.notifier.is_available():
+                    channels = pipeline.notifier.get_available_channels()
+                    if NotificationChannel.FEISHU in channels:
+                        summary_lines = ["===== 分析结果摘要 ====="]
+                        for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
+                            emoji = r.get_emoji()
+                            summary_lines.append(
+                                f"{emoji} {r.name}({r.code}): {r.operation_advice} | 评分 {r.sentiment_score} | {r.trend_prediction}"
+                            )
+                        summary_text = "\n".join(summary_lines)
+                        pipeline.notifier.send_to_feishu(summary_text)
+            except Exception as e:
+                logger.warning(f"飞书摘要推送失败: {e}")
             
         
         logger.info("\n任务执行完成")
