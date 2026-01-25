@@ -70,9 +70,12 @@
 | `EMAIL_SENDER` | 发件人邮箱（如 `xxx@qq.com`） | 可选 |
 | `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
 | `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则发给自己） | 可选 |
+| `PUSHPLUS_TOKEN` | PushPlus Token（[获取地址](https://www.pushplus.plus)，国内推送服务） | 可选 |
 | `CUSTOM_WEBHOOK_URLS` | 自定义 Webhook（支持钉钉等，多个用逗号分隔） | 可选 |
 | `CUSTOM_WEBHOOK_BEARER_TOKEN` | 自定义 Webhook 的 Bearer Token（用于需要认证的 Webhook） | 可选 |
 | `SINGLE_STOCK_NOTIFY` | 单股推送模式：设为 `true` 则每分析完一只股票立即推送 | 可选 |
+| `REPORT_TYPE` | 报告类型：`simple`(精简) 或 `full`(完整)，Docker环境推荐设为 `full` | 可选 |
+| `ANALYSIS_DELAY` | 个股分析和大盘分析之间的延迟（秒），避免API限流，如 `10` | 可选 |
 
 > *注：至少配置一个渠道，配置多个则同时推送
 >
@@ -82,7 +85,7 @@
 
 | Secret 名称 | 说明 | 必填 |
 |------------|------|:----:|
-| `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
+| `STOCK_LIST` | 自选股代码，如 `600519,hk00700,AAPL,TSLA` | ✅ |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
 | `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/) Web Search API（中文搜索优化，支持AI摘要，多个key用逗号分隔） | 可选 |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) 备用搜索 | 可选 |
@@ -147,26 +150,59 @@
 ## ⚙️ 配置说明
 
 > 📖 完整环境变量、定时任务配置请参考 [完整配置指南](docs/full-guide.md)
+
+## 🖥️ 本地 WebUI（可选）
+
+本地运行时，可启用 WebUI 来管理配置和触发分析。
+
+### 启动方式
+
+| 命令 | 说明 |
+|------|------|
+| `python main.py --webui` | 启动 WebUI + 执行一次完整分析 |
+| `python main.py --webui-only` | 仅启动 WebUI，手动触发分析 |
+
+- 访问地址：`http://127.0.0.1:8000`
+- 详细说明请参考 [配置指南 - WebUI](docs/full-guide.md#本地-webui-管理界面)
+
+### 功能特性
+
+- 📝 **配置管理** - 查看/修改 `.env` 里的自选股列表
+- 🚀 **快速分析** - 页面输入股票代码，一键触发分析
+- 📊 **实时进度** - 分析任务状态实时更新，支持多任务并行
+
+### API 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/` | GET | 配置管理页面 |
+| `/health` | GET | 健康检查 |
+| `/analysis?code=xxx` | GET | 触发单只股票异步分析 |
+| `/tasks` | GET | 查询所有任务状态 |
+| `/task?id=xxx` | GET | 查询单个任务状态 |
+
 ## 📁 项目结构
 
 ```
 daily_stock_analysis/
 ├── main.py              # 主程序入口
-├── analyzer.py          # AI 分析器（Gemini）
-├── market_analyzer.py   # 大盘复盘分析
-├── search_service.py    # 新闻搜索服务
-├── notification.py      # 消息推送
-├── scheduler.py         # 定时任务
-├── storage.py           # 数据存储
-├── config.py            # 配置管理
+├── webui.py             # WebUI 入口
+├── src/                 # 核心业务代码
+│   ├── analyzer.py      # AI 分析器（Gemini）
+│   ├── config.py        # 配置管理
+│   ├── notification.py  # 消息推送
+│   ├── storage.py       # 数据存储
+│   └── ...
+├── bot/                 # 机器人模块
+├── web/                 # WebUI 模块
 ├── data_provider/       # 数据源适配器
-│   ├── akshare_fetcher.py
-│   ├── tushare_fetcher.py
-│   ├── baostock_fetcher.py
-│   └── yfinance_fetcher.py
-├── .github/workflows/   # GitHub Actions
-├── Dockerfile           # Docker 镜像
-└── docker-compose.yml   # Docker 编排
+├── docker/              # Docker 配置
+│   ├── Dockerfile
+│   └── docker-compose.yml
+├── docs/                # 项目文档
+│   ├── full-guide.md    # 完整配置指南
+│   └── ...
+└── .github/workflows/   # GitHub Actions
 ```
 
 ## 🗺️ Roadmap
@@ -180,7 +216,7 @@ daily_stock_analysis/
 - [x] 邮件通知（SMTP）
 - [x] 自定义 Webhook（支持钉钉、Discord、Slack、Bark 等）
 - [x] iOS/Android 推送（Pushover）
-
+- [x] 钉钉机器人 （已支持命令交互 >> [相关配置](docs/bot/dingding-bot-config.md)）
 ### 🤖 AI 模型支持
 - [x] Google Gemini（主力，免费额度）
 - [x] OpenAI 兼容 API（支持 GPT-4/DeepSeek/通义千问/Claude/文心一言 等）
@@ -198,9 +234,9 @@ daily_stock_analysis/
 - [x] 定时推送
 - [x] GitHub Actions
 - [x] 港股支持
-- [ ] Web 管理界面
+- [x] Web 管理界面 (简易版)
+- [x] 美股支持
 - [ ] 历史分析回测
-- [ ] 美股支持
 
 ## 🤝 贡献
 
@@ -239,7 +275,8 @@ daily_stock_analysis/
 <!-- 赞赏锚点 -->
 <a id="sponsor"></a>
 ###### ☕ 请我喝杯咖啡
-- 如果觉得本项目对你有帮助且行有余力，可以请我喝杯咖啡，支持项目的持续维护与迭代；不赞赏也完全不影响使用。
+- 如果觉得本项目对你有帮助且行有余力，可以请我喝杯咖啡，支持项目的持续维护与迭代；不赞赏也完全不影响使用。   
+<small>（赞赏时可备注联系方式，方便私信致谢与后续交流反馈）</small>
 - 感谢支持, 祝您股市长虹，拿主力当提款机。
 
 <div align="center">
