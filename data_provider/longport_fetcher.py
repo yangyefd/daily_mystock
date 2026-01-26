@@ -266,15 +266,22 @@ class LongportFetcher(BaseFetcher):
             from .akshare_fetcher import RealtimeQuote
             
             # 严格按照 RealtimeQuote 定义的字段来构造
+            # LongPort quote 对象字段参考：https://open.longportapp.com/docs/quote/pull/quote
             return RealtimeQuote(
                 code=stock_code,
                 name=stock_name or stock_code,
                 price=safe_get(q, 'last_done', 'last_price', 'current_price'),
                 change_pct=safe_get(q, 'change_rate', 'change_pct', 'pct_change'),
                 change_amount=safe_get(q, 'change_val', 'change_amount', 'change'),
+                volume=safe_get(q, 'volume', 'total_volume', default=None),  # 成交量
+                amount=safe_get(q, 'turnover', 'total_turnover', 'amount', default=None),  # 成交额
                 volume_ratio=safe_get(q, 'volume_ratio'),
                 turnover_rate=safe_get(q, 'turnover_rate'),
                 amplitude=safe_get(q, 'amplitude'),
+                open_price=safe_get(q, 'open', 'open_price', default=None),  # 今开
+                high=safe_get(q, 'high', 'high_price', default=None),  # 最高
+                low=safe_get(q, 'low', 'low_price', default=None),  # 最低
+                pre_close=safe_get(q, 'prev_close', 'pre_close', 'last_close', default=None),  # 昨收
                 pe_ratio=safe_get(q, 'pe_ttm', 'pe_ratio'),
                 pb_ratio=safe_get(q, 'pb_ratio', 'pb'),
                 total_mv=safe_get(q, 'total_market_value', 'market_cap'),

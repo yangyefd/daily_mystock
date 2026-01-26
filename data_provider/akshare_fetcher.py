@@ -82,6 +82,9 @@ _etf_realtime_cache: Dict[str, Any] = {
     'ttl': 1200  # 20分钟缓存有效期
 }
 
+# LongPort Fetcher 单例（避免重复初始化）
+_longport_fetcher_instance = None
+
 
 def _is_etf_code(stock_code: str) -> bool:
     """
@@ -804,8 +807,105 @@ class AkshareFetcher(BaseFetcher):
         """
         获取 ETF 基金实时行情数据
         
+        优先使用 LongPort 数据源，失败后回退到 Akshare
+        
+        数据来源优先级：
+        1. LongPort OpenAPI（数据质量高）
+        2. ak.fund_etf_spot_em()（兜底）
+        
+        Args:
+            stock_code: ETF 代码
+            
+        Returns:
+            UnifiedRealtimeQuote 对象，获取失败返回 None
+        """
+        # === 优先尝试 LongPort ===
+        quote = self._get_etf_realtime_quote_longport(stock_code)
+        if quote is not None:
+            return quote
+        
+        # === LongPort 失败，回退到 Akshare ===
+        logger.info(f"[回退] LongPort 获取 ETF {stock_code} 失败，使用 Akshare 兜底")
+        return self._get_etf_realtime_quote_akshare(stock_code)
+    
+    def _get_etf_realtime_quote_longport(self, stock_code: str) -> Optional[UnifiedRealtimeQuote]:
+        """
+        使用 LongPort 获取 ETF 实时行情
+        
+        Args:
+            stock_code: ETF 代码
+            
+        Returns:
+            UnifiedRealtimeQuote 对象，获取失败返回 None
+        """
+        try:
+            from .longport_fetcher import LongportFetcher
+            
+            # 获取或创建 LongPort 实例（使用模块级缓存避免重复初始化）
+            global _longport_fetcher_instance
+            if '_longport_fetcher_instance' not in globals() or _longport_fetcher_instance is None:
+                _longport_fetcher_instance = LongportFetcher()
+            
+            fetcher = _longport_fetcher_instance
+            
+            # 检查 LongPort 是否可用
+            if fetcher._ctx is None:
+                logger.debug(f"[LongPort] 未初始化，跳过 ETF {stock_code}")
+                return None
+            
+            logger.info(f"[API调用] LongPort 获取 ETF {stock_code} 实时行情...")
+            import time as _time
+            api_start = _time.time()
+            
+            # 调用 LongPort 获取实时行情
+            lp_quote = fetcher.get_realtime_quote(stock_code)
+            
+            api_elapsed = _time.time() - api_start
+            
+            if lp_quote is None:
+                logger.warning(f"[API返回] LongPort 未返回 ETF {stock_code} 数据, 耗时 {api_elapsed:.2f}s")
+                return None
+            
+            logger.info(f"[API返回] LongPort ETF {stock_code} 成功, 耗时 {api_elapsed:.2f}s")
+            
+            # 转换为 UnifiedRealtimeQuote 格式（与 Akshare 数据结构对齐）
+            quote = UnifiedRealtimeQuote(
+                code=stock_code,
+                name=lp_quote.name or "",
+                source=RealtimeSource.LONGPORT,
+                price=lp_quote.price,
+                change_pct=lp_quote.change_pct,
+                change_amount=lp_quote.change_amount,
+                volume=safe_int(getattr(lp_quote, 'volume', None)),  # 成交量
+                amount=safe_float(getattr(lp_quote, 'amount', None)),  # 成交额
+                volume_ratio=lp_quote.volume_ratio,
+                turnover_rate=lp_quote.turnover_rate,
+                amplitude=lp_quote.amplitude,
+                open_price=safe_float(getattr(lp_quote, 'open_price', None)),  # 今开
+                high=safe_float(getattr(lp_quote, 'high', None)),  # 最高
+                low=safe_float(getattr(lp_quote, 'low', None)),  # 最低
+                total_mv=lp_quote.total_mv,
+                circ_mv=lp_quote.circ_mv,
+                high_52w=lp_quote.high_52w,
+                low_52w=lp_quote.low_52w,
+            )
+            
+            logger.info(f"[ETF实时行情-LongPort] {stock_code} {quote.name}: 价格={quote.price}, "
+                       f"涨跌={quote.change_pct}%, 换手率={quote.turnover_rate}%")
+            return quote
+            
+        except ImportError:
+            logger.debug(f"[LongPort] longport 模块未安装，跳过 ETF {stock_code}")
+            return None
+        except Exception as e:
+            logger.warning(f"[API错误] LongPort 获取 ETF {stock_code} 失败: {e}")
+            return None
+    
+    def _get_etf_realtime_quote_akshare(self, stock_code: str) -> Optional[UnifiedRealtimeQuote]:
+        """
+        使用 Akshare 获取 ETF 实时行情（兜底方案）
+        
         数据来源：ak.fund_etf_spot_em()
-        包含：最新价、涨跌幅、成交量、成交额、换手率等
         
         Args:
             stock_code: ETF 代码
