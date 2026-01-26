@@ -115,24 +115,28 @@ jobs:
           ENABLE_SEARCH="false"
           RUN_ARGS=""
           
-          # UTC 01:00 = 北京 09:00 (早盘)
-          if [ "$UTC_HOUR" -eq 1 ] && [ "$UTC_MINUTE" -eq 0 ]; then
-             echo ">>> 触发场景: 早盘分析 (开启搜索)"
+          # 将 UTC 时间转换为分钟数便于范围判断
+          UTC_TOTAL_MINUTES=$((10#$UTC_HOUR * 60 + 10#$UTC_MINUTE))
+          
+          # 北京时间 07:00-10:00 = UTC 23:00-02:00 (早盘带新闻)
+          # UTC 23:00 = 1380分钟, UTC 02:00 = 120分钟 (跨越午夜)
+          if [ "$UTC_TOTAL_MINUTES" -ge 1380 ] || [ "$UTC_TOTAL_MINUTES" -lt 120 ]; then
+             echo ">>> 触发场景: 早盘分析 (北京 07:00-10:00, 开启搜索)"
              ENABLE_SEARCH="true"
              
-          # UTC 06:30 = 北京 14:30 (午盘)
-          elif [ "$UTC_HOUR" -eq 6 ] && [ "$UTC_MINUTE" -eq 30 ]; then
+          # 北京时间 14:00-15:00 = UTC 06:00-07:00 (午盘)
+          elif [ "$UTC_TOTAL_MINUTES" -ge 360 ] && [ "$UTC_TOTAL_MINUTES" -lt 420 ]; then
              echo ">>> 触发场景: 午盘分析 (关闭搜索)"
              ENABLE_SEARCH="false"
              
-          # UTC 14:00 = 北京 22:00 (晚盘)
-          elif [ "$UTC_HOUR" -eq 14 ] && [ "$UTC_MINUTE" -eq 0 ]; then
+          # 北京时间 21:00-23:00 = UTC 13:00-15:00 (晚盘)
+          elif [ "$UTC_TOTAL_MINUTES" -ge 780 ] && [ "$UTC_TOTAL_MINUTES" -lt 900 ]; then
              echo ">>> 触发场景: 晚盘复盘 (关闭搜索)"
              ENABLE_SEARCH="false"
              
           # 手动触发或测试
           else
-             echo ">>> 触发场景: 手动运行或测试"
+             echo ">>> 触发场景: 手动运行或测试 (UTC: ${UTC_HOUR}:${UTC_MINUTE})"
              ENABLE_SEARCH="false"
           fi
           
