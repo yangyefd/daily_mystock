@@ -9,6 +9,7 @@ sqlalchemy>=2.0.0           # ORM数据库操作
 schedule>=1.2.0             # 定时任务调度
 
 # 数据源依赖（多源策略，按优先级排序）
+longport>=1.4.2             # Priority 0: LongPort OpenAPI
 efinance>=0.5.5             # Priority 0: 东方财富数据源（最高优先级）https://github.com/Micro-sheep/efinance
 akshare>=1.12.0             # Priority 1: 东方财富爬虫数据源
 tushare>=1.4.0              # Priority 2: 挖地兔 Pro API
