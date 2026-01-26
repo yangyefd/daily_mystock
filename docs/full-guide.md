@@ -6,6 +6,7 @@
 
 ## 📑 目录
 
+- [GitHub Actions 详细配置](#github-actions-详细配置)
 - [环境变量完整列表](#环境变量完整列表)
 - [Docker 部署](#docker-部署)
 - [本地运行详细配置](#本地运行详细配置)
@@ -13,6 +14,101 @@
 - [通知渠道详细配置](#通知渠道详细配置)
 - [数据源配置](#数据源配置)
 - [高级功能](#高级功能)
+- [本地 WebUI 管理界面](#本地-webui-管理界面)
+
+---
+
+## GitHub Actions 详细配置
+
+### 1. Fork 本仓库
+
+点击右上角 `Fork` 按钮
+
+### 2. 配置 Secrets
+
+进入你 Fork 的仓库 → `Settings` → `Secrets and variables` → `Actions` → `New repository secret`
+
+<div align="center">
+  <img src="../sources/secret_config.png" alt="GitHub Secrets 配置示意图" width="600">
+</div>
+
+#### AI 模型配置（二选一）
+
+| Secret 名称 | 说明 | 必填 |
+|------------|------|:----:|
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) 获取免费 Key | ✅* |
+| `OPENAI_API_KEY` | OpenAI 兼容 API Key（支持 DeepSeek、通义千问等） | 可选 |
+| `OPENAI_BASE_URL` | OpenAI 兼容 API 地址（如 `https://api.deepseek.com/v1`） | 可选 |
+| `OPENAI_MODEL` | 模型名称（如 `deepseek-chat`） | 可选 |
+
+> *注：`GEMINI_API_KEY` 和 `OPENAI_API_KEY` 至少配置一个
+
+#### 通知渠道配置（可同时配置多个，全部推送）
+
+| Secret 名称 | 说明 | 必填 |
+|------------|------|:----:|
+| `WECHAT_WEBHOOK_URL` | 企业微信 Webhook URL | 可选 |
+| `FEISHU_WEBHOOK_URL` | 飞书 Webhook URL | 可选 |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token（@BotFather 获取） | 可选 |
+| `TELEGRAM_CHAT_ID` | Telegram Chat ID | 可选 |
+| `DISCORD_WEBHOOK_URL` | Discord Webhook URL（[创建方法](https://support.discord.com/hc/en-us/articles/228383668)） | 可选 |
+| `DISCORD_BOT_TOKEN` | Discord Bot Token（与 Webhook 二选一） | 可选 |
+| `DISCORD_CHANNEL_ID` | Discord Channel ID（使用 Bot 时需要） | 可选 |
+| `EMAIL_SENDER` | 发件人邮箱（如 `xxx@qq.com`） | 可选 |
+| `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
+| `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则发给自己） | 可选 |
+| `PUSHPLUS_TOKEN` | PushPlus Token（[获取地址](https://www.pushplus.plus)，国内推送服务） | 可选 |
+| `CUSTOM_WEBHOOK_URLS` | 自定义 Webhook（支持钉钉等，多个用逗号分隔） | 可选 |
+| `CUSTOM_WEBHOOK_BEARER_TOKEN` | 自定义 Webhook 的 Bearer Token（用于需要认证的 Webhook） | 可选 |
+
+> *注：至少配置一个渠道，配置多个则同时推送
+
+#### 推送行为配置
+
+| Secret 名称 | 说明 | 必填 |
+|------------|------|:----:|
+| `SINGLE_STOCK_NOTIFY` | 单股推送模式：设为 `true` 则每分析完一只股票立即推送 | 可选 |
+| `REPORT_TYPE` | 报告类型：`simple`(精简) 或 `full`(完整)，Docker环境推荐设为 `full` | 可选 |
+| `ANALYSIS_DELAY` | 个股分析和大盘分析之间的延迟（秒），避免API限流，如 `10` | 可选 |
+
+#### 其他配置
+
+| Secret 名称 | 说明 | 必填 |
+|------------|------|:----:|
+| `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
+| `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
+| `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/) Web Search API（中文搜索优化，支持AI摘要，多个key用逗号分隔） | 可选 |
+| `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) 备用搜索 | 可选 |
+| `TUSHARE_TOKEN` | [Tushare Pro](https://tushare.pro/) Token | 可选 |
+
+#### ✅ 最小配置示例
+
+如果你想快速开始，最少需要配置以下项：
+
+1. **AI 模型**：`GEMINI_API_KEY`（推荐）或 `OPENAI_API_KEY`
+2. **通知渠道**：至少配置一个，如 `WECHAT_WEBHOOK_URL` 或 `EMAIL_SENDER` + `EMAIL_PASSWORD`
+3. **股票列表**：`STOCK_LIST`（必填）
+4. **搜索 API**：`TAVILY_API_KEYS`（强烈推荐，用于新闻搜索）
+
+> 💡 配置完以上 4 项即可开始使用！
+
+### 3. 启用 Actions
+
+1. 进入你 Fork 的仓库
+2. 点击顶部的 `Actions` 标签
+3. 如果看到提示，点击 `I understand my workflows, go ahead and enable them`
+
+### 4. 手动测试
+
+1. 进入 `Actions` 标签
+2. 左侧选择 `每日股票分析` workflow
+3. 点击右侧的 `Run workflow` 按钮
+4. 选择运行模式
+5. 点击绿色的 `Run workflow` 确认
+
+### 5. 完成！
+
+默认每个工作日 **18:00（北京时间）** 自动执行。
 
 ---
 
@@ -39,12 +135,17 @@
 | `FEISHU_WEBHOOK_URL` | 飞书机器人 Webhook URL | 可选 |
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | 可选 |
 | `TELEGRAM_CHAT_ID` | Telegram Chat ID | 可选 |
+| `DISCORD_WEBHOOK_URL` | Discord Webhook URL | 可选 |
+| `DISCORD_BOT_TOKEN` | Discord Bot Token（与 Webhook 二选一） | 可选 |
+| `DISCORD_CHANNEL_ID` | Discord Channel ID（使用 Bot 时需要） | 可选 |
 | `EMAIL_SENDER` | 发件人邮箱 | 可选 |
 | `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
 | `EMAIL_RECEIVERS` | 收件人邮箱（逗号分隔，留空发给自己） | 可选 |
 | `CUSTOM_WEBHOOK_URLS` | 自定义 Webhook（逗号分隔） | 可选 |
+| `CUSTOM_WEBHOOK_BEARER_TOKEN` | 自定义 Webhook Bearer Token | 可选 |
 | `PUSHOVER_USER_KEY` | Pushover 用户 Key | 可选 |
 | `PUSHOVER_API_TOKEN` | Pushover API Token | 可选 |
+| `PUSHPLUS_TOKEN` | PushPlus Token（国内推送服务） | 可选 |
 
 #### 飞书云文档配置（可选，解决消息截断问题）
 
@@ -101,37 +202,82 @@ cp .env.example .env
 vim .env  # 填入 API Key 和配置
 
 # 3. 启动容器
-docker-compose up -d
+docker-compose -f ./docker/docker-compose.yml up -d webui      # WebUI 模式（推荐）
+docker-compose -f ./docker/docker-compose.yml up -d analyzer   # 定时任务模式
+docker-compose -f ./docker/docker-compose.yml up -d            # 同时启动两种模式
 
-# 4. 查看日志
-docker-compose logs -f
+# 4. 访问 WebUI
+# http://localhost:8000
+
+# 5. 查看日志
+docker-compose -f ./docker/docker-compose.yml logs -f webui
 ```
+
+### 运行模式说明
+
+| 命令 | 说明 | 端口 |
+|------|------|------|
+| `docker-compose -f ./docker/docker-compose.yml up -d webui` | WebUI 模式，手动触发分析 | 8000 |
+| `docker-compose -f ./docker/docker-compose.yml up -d analyzer` | 定时任务模式，每日自动执行 | - |
+| `docker-compose -f ./docker/docker-compose.yml up -d` | 同时启动两种模式 | 8000 |
 
 ### Docker Compose 配置
 
-`docker-compose.yml` 已配置好定时任务模式：
+`docker-compose.yml` 使用 YAML 锚点复用配置：
 
 ```yaml
 version: '3.8'
+
+x-common: &common
+  build: .
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    - TZ=Asia/Shanghai
+  volumes:
+    - ./data:/app/data
+    - ./logs:/app/logs
+    - ./reports:/app/reports
+    - ./.env:/app/.env
+
 services:
-  stock-analysis:
-    build: .
-    environment:
-      - TZ=Asia/Shanghai
-    env_file:
-      - .env
-    volumes:
-      - ./data:/app/data      # 数据持久化
-      - ./logs:/app/logs      # 日志持久化
-      - ./reports:/app/reports # 报告持久化
-    restart: unless-stopped
+  # 定时任务模式
+  analyzer:
+    <<: *common
+    container_name: stock-analyzer
+
+  # WebUI 模式
+  webui:
+    <<: *common
+    container_name: stock-webui
+    command: ["python", "main.py", "--webui-only"]
+    ports:
+      - "8000:8000"
+```
+
+### 常用命令
+
+```bash
+# 查看运行状态
+docker-compose -f ./docker/docker-compose.yml ps
+
+# 查看日志
+docker-compose -f ./docker/docker-compose.yml logs -f webui
+
+# 停止服务
+docker-compose -f ./docker/docker-compose.yml down
+
+# 重建镜像（代码更新后）
+docker-compose -f ./docker/docker-compose.yml build --no-cache
+docker-compose -f ./docker/docker-compose.yml up -d webui
 ```
 
 ### 手动构建镜像
 
 ```bash
 docker build -t stock-analysis .
-docker run -d --env-file .env -v ./data:/app/data stock-analysis
+docker run -d --env-file .env -p 8000:8000 -v ./data:/app/data stock-analysis python main.py --webui-only
 ```
 
 ---
@@ -244,6 +390,33 @@ crontab -e
 
 设置 `CUSTOM_WEBHOOK_URLS`，多个用逗号分隔。
 
+### Discord
+
+Discord 支持两种方式推送：
+
+**方式一：Webhook（推荐，简单）**
+
+1. 在 Discord 频道设置中创建 Webhook
+2. 复制 Webhook URL
+3. 配置环境变量：
+
+```bash
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/xxx/yyy
+```
+
+**方式二：Bot API（需要更多权限）**
+
+1. 在 [Discord Developer Portal](https://discord.com/developers/applications) 创建应用
+2. 创建 Bot 并获取 Token
+3. 邀请 Bot 到服务器
+4. 获取频道 ID（开发者模式下右键频道复制）
+5. 配置环境变量：
+
+```bash
+DISCORD_BOT_TOKEN=your_bot_token
+DISCORD_CHANNEL_ID=your_channel_id
+```
+
 ### Pushover（iOS/Android 推送）
 
 [Pushover](https://pushover.net/) 是一个跨平台的推送服务，支持 iOS 和 Android。
@@ -323,6 +496,78 @@ python main.py --debug
 日志文件位置：
 - 常规日志：`logs/stock_analysis_YYYYMMDD.log`
 - 调试日志：`logs/stock_analysis_debug_YYYYMMDD.log`
+
+---
+
+## 本地 WebUI 管理界面
+
+WebUI 提供配置管理和快速分析功能，支持页面触发单只股票分析。
+
+### 启动方式
+
+| 命令 | 说明 |
+|------|------|
+| `python main.py --webui` | 启动 WebUI + 执行一次完整分析 |
+| `python main.py --webui-only` | 仅启动 WebUI，手动触发分析 |
+
+**永久启用**：在 `.env` 中设置：
+```env
+WEBUI_ENABLED=true
+```
+
+### 功能特性
+
+- 📝 **配置管理** - 查看/修改 `.env` 里的自选股列表
+- 🚀 **快速分析** - 页面输入股票代码，一键触发分析
+- 📊 **实时进度** - 分析任务状态实时更新，支持多任务并行
+- 🔗 **API 接口** - 支持程序化调用
+
+### API 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/` | GET | 配置管理页面 |
+| `/health` | GET | 健康检查 |
+| `/analysis?code=xxx` | GET | 触发单只股票异步分析 |
+| `/tasks` | GET | 查询所有任务状态 |
+| `/task?id=xxx` | GET | 查询单个任务状态 |
+
+**调用示例**：
+```bash
+# 健康检查
+curl http://127.0.0.1:8000/health
+
+# 触发分析（A股）
+curl "http://127.0.0.1:8000/analysis?code=600519"
+
+# 触发分析（港股）
+curl "http://127.0.0.1:8000/analysis?code=hk00700"
+
+# 查询任务状态
+curl "http://127.0.0.1:8000/task?id=<task_id>"
+```
+
+### 自定义配置
+
+修改默认端口或允许局域网访问：
+
+```env
+WEBUI_HOST=0.0.0.0    # 默认 127.0.0.1
+WEBUI_PORT=8888       # 默认 8000
+```
+
+### 支持的股票代码格式
+
+| 类型 | 格式 | 示例 |
+|------|------|------|
+| A股 | 6位数字 | `600519`、`000001`、`300750` |
+| 港股 | hk + 5位数字 | `hk00700`、`hk09988` |
+
+### 注意事项
+
+- 浏览器访问：`http://127.0.0.1:8000`（或您配置的端口）
+- 分析完成后自动推送通知到配置的渠道
+- 此功能在 GitHub Actions 环境中会自动禁用
 
 ---
 
