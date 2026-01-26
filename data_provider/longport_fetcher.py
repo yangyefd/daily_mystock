@@ -95,9 +95,8 @@ class LongportFetcher(BaseFetcher):
             return
         
         try:
-            LONGPORT_REGION = 'cn'  # 根据需要调整区域设置
             # 配置 LongPort
-            lp_config = LongportConfig(app_key, app_secret, access_token, region=LONGPORT_REGION)
+            lp_config = LongportConfig(app_key, app_secret, access_token)
             self._ctx = QuoteContext(lp_config)
             
             logger.info("LongPort API 初始化成功")
