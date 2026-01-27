@@ -98,11 +98,6 @@ class LongportFetcher(BaseFetcher):
         app_key = getattr(config, 'longport_app_key', None)
         app_secret = getattr(config, 'longport_app_secret', None)
         access_token = getattr(config, 'longport_access_token', None)
-        
-        app_key = 'f0894ee78c62d5d4315d3a9b5fd739ef' #${LONGPORT_APP_KEY}
-        app_secret = '4d1e3f0aa446ca8a1fff68bb7daccdc113f10979d52b9c8572d0f5f82e99f285' #${LONGPORT_APP_SECRET}
-        access_token = 'm_eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJsb25nYnJpZGdlIiwic3ViIjoiYWNjZXNzX3Rva2VuIiwiZXhwIjoxNzc1NDA0NjIyLCJpYXQiOjE3Njc2Mjg2MjQsImFrIjoiZjA4OTRlZTc4YzYyZDVkNDMxNWQzYTliNWZkNzM5ZWYiLCJhYWlkIjoyMTAwNDg5OCwiYWMiOiJsYl9wYXBlcnRyYWRpbmciLCJtaWQiOjI0NzcwODgxLCJzaWQiOiJYVzNtNXhsdmVBMlJSd1I5N1ZuckR3PT0iLCJibCI6MCwidWwiOjAsImlrIjoibGJfcGFwZXJ0cmFkaW5nXzIxMDA0ODk4In0.mOByf_1toojqe1E4kfCrUErjN3_dE2lpjNC_ysmy0iEW8qlAVxspdVUW6UZA95F8P4yDxF4kqkQvq35Vlh90UC4dLqYDcFzjFWlD42TTV1pZnyf6N43M5lLlGp1djjhksDxe5DlsLBb2n2Jza9abmOskSXpkAvvgL9VUcNGAaAEioVPQLIO0u6uaK8XlOEbkpEv_B7_5cpj1OW70VbOQoJgwy046C54IUoT7eMYEBBIx3OK7jL6jzcoql4Fwiej2Jt2lkhsIVEInHXj6RZyALltdVIxirQkUdCRLEDiu1eXIxHTyqAB6kMKPDdXCT2J3qwyTVWm80mc2u3R_oL5CTpFV9SMem-4-0O3mE1TL9rJ4Ckc8L83GPSP0dOh84X0a7F6Wd9BN-K473PNZotf6-prxteK76iwX6qbi0QE_6UR4XfMtbApnq4NeEKCMYkPO6Y7SVE9DHpl6o8F9ukQs6G2-JdNj9-Fl1I5SCKHB4yB08uM_W1rAbLPwVrtU8vvsv5sRBkk7mwi3I_jy5SNVu5iHsDLZJNdHb7GQWIfBMjxUcY8Jx2KGIa9yOFSRrbQv4RjlRx163m3FQH2K5OW6-Aa_bAE7-SEKB82oGdAAYE-Kj-Z6CLteblrqBsDNBETo8cevoERyA-1foT21EIH5IGIUjYILkSb7ErJwKkjEPhw' #${LONGPORT_ACCESS_TOKEN}
-        
 
         if not all([app_key, app_secret, access_token]):
             logger.warning("LongPort 配置不完整 (app_key/secret/token)，此数据源不可用")
