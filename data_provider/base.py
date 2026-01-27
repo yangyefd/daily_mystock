@@ -452,11 +452,12 @@ class DataFetcherManager:
         获取实时行情数据（自动故障切换）
         
         故障切换策略（按配置的优先级）：
-        1. EfinanceFetcher.get_realtime_quote()
-        2. AkshareFetcher.get_realtime_quote(source="em")  - 东财
-        3. AkshareFetcher.get_realtime_quote(source="sina") - 新浪
-        4. AkshareFetcher.get_realtime_quote(source="tencent") - 腾讯
-        5. 返回 None（降级兜底）
+        1. LongportFetcher.get_realtime_quote()
+        2. EfinanceFetcher.get_realtime_quote()
+        3. AkshareFetcher.get_realtime_quote(source="em")  - 东财
+        4. AkshareFetcher.get_realtime_quote(source="sina") - 新浪
+        5. AkshareFetcher.get_realtime_quote(source="tencent") - 腾讯
+        6. 返回 None（降级兜底）
         
         Args:
             stock_code: 股票代码
@@ -484,8 +485,14 @@ class DataFetcherManager:
             
             try:
                 quote = None
-                
-                if source == "efinance":
+                if source == "longport":
+                    # 尝试 LongportFetcher
+                    for fetcher in self._fetchers:
+                        if fetcher.name == "LongportFetcher":
+                            if hasattr(fetcher, 'get_realtime_quote'):
+                                quote = fetcher.get_realtime_quote(stock_code)
+                            break
+                elif source == "efinance":
                     # 尝试 EfinanceFetcher
                     for fetcher in self._fetchers:
                         if fetcher.name == "EfinanceFetcher":

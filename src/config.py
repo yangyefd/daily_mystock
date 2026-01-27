@@ -366,7 +366,7 @@ class Config:
             # 实时行情数据源优先级：
             # - akshare_sina/tencent: 单股票直连查询，轻量级，推荐放前面
             # - efinance/akshare_em: 全量拉取，数据丰富但负载大
-            realtime_source_priority=os.getenv('REALTIME_SOURCE_PRIORITY', 'akshare_sina,tencent,efinance,akshare_em'),
+            realtime_source_priority=os.getenv('REALTIME_SOURCE_PRIORITY', 'longport,akshare_sina,tencent,efinance,akshare_em'),
             realtime_cache_ttl=int(os.getenv('REALTIME_CACHE_TTL', '600')),
             circuit_breaker_cooldown=int(os.getenv('CIRCUIT_BREAKER_COOLDOWN', '300'))
         )
