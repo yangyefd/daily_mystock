@@ -31,6 +31,7 @@ from sqlalchemy import (
     select,
     and_,
     desc,
+    text,
 )
 from sqlalchemy.orm import (
     declarative_base,
@@ -154,11 +155,30 @@ class DatabaseManager:
             db_url = config.get_db_url()
         
         # 创建数据库引擎
+        connect_args = {}
+        if db_url.startswith('sqlite'):
+            # SQLite 特定配置：解决并发写入锁定问题
+            connect_args = {
+                'timeout': 30.0,  # 等待锁释放的超时时间（秒）
+                'check_same_thread': False,  # 允许多线程访问
+            }
+        
         self._engine = create_engine(
             db_url,
             echo=False,  # 设为 True 可查看 SQL 语句
             pool_pre_ping=True,  # 连接健康检查
+            connect_args=connect_args,
+            pool_size=10,  # 连接池大小
+            max_overflow=20,  # 最大溢出连接数
         )
+        
+        # 如果是 SQLite，启用 WAL 模式以支持并发读写
+        if db_url.startswith('sqlite'):
+            with self._engine.connect() as conn:
+                conn.execute(text("PRAGMA journal_mode=WAL"))
+                conn.execute(text("PRAGMA synchronous=NORMAL"))
+                conn.commit()
+                logger.info("SQLite WAL 模式已启用，支持并发读写")
         
         # 创建 Session 工厂
         self._SessionLocal = sessionmaker(
@@ -314,7 +334,8 @@ class DatabaseManager:
         self, 
         df: pd.DataFrame, 
         code: str,
-        data_source: str = "Unknown"
+        data_source: str = "Unknown",
+        max_retries: int = 3
     ) -> int:
         """
         保存日线数据到数据库
@@ -322,11 +343,13 @@ class DatabaseManager:
         策略：
         - 使用 UPSERT 逻辑（存在则更新，不存在则插入）
         - 跳过已存在的数据，避免重复
+        - 自动重试机制，解决并发锁定问题
         
         Args:
             df: 包含日线数据的 DataFrame
             code: 股票代码
             data_source: 数据来源名称
+            max_retries: 最大重试次数
             
         Returns:
             新增/更新的记录数
@@ -335,71 +358,85 @@ class DatabaseManager:
             logger.warning(f"保存数据为空，跳过 {code}")
             return 0
         
+        import time
+        from sqlalchemy.exc import OperationalError
+        
         saved_count = 0
         
-        with self.get_session() as session:
+        # 重试机制：解决数据库锁定问题
+        for attempt in range(max_retries):
             try:
-                for _, row in df.iterrows():
-                    # 解析日期
-                    row_date = row.get('date')
-                    if isinstance(row_date, str):
-                        row_date = datetime.strptime(row_date, '%Y-%m-%d').date()
-                    elif isinstance(row_date, datetime):
-                        row_date = row_date.date()
-                    elif isinstance(row_date, pd.Timestamp):
-                        row_date = row_date.date()
-                    
-                    # 检查是否已存在
-                    existing = session.execute(
-                        select(StockDaily).where(
-                            and_(
-                                StockDaily.code == code,
-                                StockDaily.date == row_date
+                with self.get_session() as session:
+                    for _, row in df.iterrows():
+                        # 解析日期
+                        row_date = row.get('date')
+                        if isinstance(row_date, str):
+                            row_date = datetime.strptime(row_date, '%Y-%m-%d').date()
+                        elif isinstance(row_date, datetime):
+                            row_date = row_date.date()
+                        elif isinstance(row_date, pd.Timestamp):
+                            row_date = row_date.date()
+                        
+                        # 检查是否已存在
+                        existing = session.execute(
+                            select(StockDaily).where(
+                                and_(
+                                    StockDaily.code == code,
+                                    StockDaily.date == row_date
+                                )
                             )
-                        )
-                    ).scalar_one_or_none()
+                        ).scalar_one_or_none()
+                        
+                        if existing:
+                            # 更新现有记录
+                            existing.open = row.get('open')
+                            existing.high = row.get('high')
+                            existing.low = row.get('low')
+                            existing.close = row.get('close')
+                            existing.volume = row.get('volume')
+                            existing.amount = row.get('amount')
+                            existing.pct_chg = row.get('pct_chg')
+                            existing.ma5 = row.get('ma5')
+                            existing.ma10 = row.get('ma10')
+                            existing.ma20 = row.get('ma20')
+                            existing.volume_ratio = row.get('volume_ratio')
+                            existing.data_source = data_source
+                            existing.updated_at = datetime.now()
+                        else:
+                            # 创建新记录
+                            record = StockDaily(
+                                code=code,
+                                date=row_date,
+                                open=row.get('open'),
+                                high=row.get('high'),
+                                low=row.get('low'),
+                                close=row.get('close'),
+                                volume=row.get('volume'),
+                                amount=row.get('amount'),
+                                pct_chg=row.get('pct_chg'),
+                                ma5=row.get('ma5'),
+                                ma10=row.get('ma10'),
+                                ma20=row.get('ma20'),
+                                volume_ratio=row.get('volume_ratio'),
+                                data_source=data_source,
+                            )
+                            session.add(record)
+                            saved_count += 1
                     
-                    if existing:
-                        # 更新现有记录
-                        existing.open = row.get('open')
-                        existing.high = row.get('high')
-                        existing.low = row.get('low')
-                        existing.close = row.get('close')
-                        existing.volume = row.get('volume')
-                        existing.amount = row.get('amount')
-                        existing.pct_chg = row.get('pct_chg')
-                        existing.ma5 = row.get('ma5')
-                        existing.ma10 = row.get('ma10')
-                        existing.ma20 = row.get('ma20')
-                        existing.volume_ratio = row.get('volume_ratio')
-                        existing.data_source = data_source
-                        existing.updated_at = datetime.now()
-                    else:
-                        # 创建新记录
-                        record = StockDaily(
-                            code=code,
-                            date=row_date,
-                            open=row.get('open'),
-                            high=row.get('high'),
-                            low=row.get('low'),
-                            close=row.get('close'),
-                            volume=row.get('volume'),
-                            amount=row.get('amount'),
-                            pct_chg=row.get('pct_chg'),
-                            ma5=row.get('ma5'),
-                            ma10=row.get('ma10'),
-                            ma20=row.get('ma20'),
-                            volume_ratio=row.get('volume_ratio'),
-                            data_source=data_source,
-                        )
-                        session.add(record)
-                        saved_count += 1
-                
-                session.commit()
-                logger.info(f"保存 {code} 数据成功，新增 {saved_count} 条")
-                
+                    session.commit()
+                    logger.info(f"保存 {code} 数据成功，新增 {saved_count} 条")
+                    return saved_count  # 成功后直接返回
+                    
+            except OperationalError as e:
+                if 'database is locked' in str(e) and attempt < max_retries - 1:
+                    # 数据库锁定，等待后重试
+                    wait_time = (attempt + 1) * 0.5  # 递增等待时间
+                    logger.warning(f"保存 {code} 数据时数据库锁定，{wait_time}秒后重试 (尝试 {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"保存 {code} 数据失败: {e}")
+                    raise
             except Exception as e:
-                session.rollback()
                 logger.error(f"保存 {code} 数据失败: {e}")
                 raise
         
